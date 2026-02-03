@@ -25,10 +25,33 @@
 
 			<!-- Winner Announcement -->
 			<div v-if="winner" class="winner-announcement">
+				<div class="winner-glow"></div>
+				<div class="winner-particles">
+					<span v-for="i in 20" :key="i" class="particle"></span>
+				</div>
 				<div class="winner-content">
-					<img :src="winner.image" :alt="winner.name" class="winner-big-flag" />
-					<h2>{{ winner.name }} WINS!</h2>
-					<button @click="restartGame" class="restart-btn">Play Again</button>
+					<div class="crown-icon">👑</div>
+					<div class="flag-container">
+						<div class="flag-glow"></div>
+						<img :src="winner.image" :alt="winner.name" class="winner-big-flag" />
+					</div>
+					<h2 class="winner-title">
+						<span class="winner-name">{{ winner.name }}</span>
+						<span class="wins-text">WINS!</span>
+					</h2>
+					<div class="trophy-row">
+						<span class="trophy">🏆</span>
+						<span class="champion-text">CHAMPION</span>
+						<span class="trophy">🏆</span>
+					</div>
+					<p v-if="countdownSeconds > 0" class="countdown-text">
+						<span class="countdown-label">Next round in</span>
+						<span class="countdown-number">{{ countdownSeconds }}</span>
+					</p>
+					<button @click="restartGame" class="restart-btn">
+						<span class="btn-text">Play Again</span>
+						<span class="btn-icon">🎮</span>
+					</button>
 				</div>
 			</div>
 		</div>
@@ -73,7 +96,7 @@ const winner = ref<Flag | null>(null)
 // Game settings
 const centerX = 300
 const centerY = 300
-const arenaRadius = 220
+const arenaRadius = 260
 const flagSize = 30
 const gapStartAngle = -Math.PI / 4 // Gap o'ng tomonda
 const gapEndAngle = Math.PI / 4
@@ -82,6 +105,8 @@ const rotationSpeed = 0.02 // Tezroq aylanish
 let animationId: number
 let currentRotation = 0
 let gameRunning = true
+let restartTimer: ReturnType<typeof setTimeout> | null = null
+const countdownSeconds = ref(0)
 
 // Audio context for sound effects
 let audioContext: AudioContext | null = null
@@ -368,6 +393,13 @@ const initFlags = () => {
 
 // O'yinni qayta boshlash
 const restartGame = () => {
+	// Avvalgi restart timerni bekor qilish
+	if (restartTimer) {
+		clearTimeout(restartTimer)
+		restartTimer = null
+	}
+	countdownSeconds.value = 0
+
 	winner.value = null
 	eliminatedFlags.value = []
 	topWinners.value = [null, null, null]
@@ -448,16 +480,37 @@ const updatePhysics = () => {
 				flag.x -= (dx / distance) * overlap
 				flag.y -= (dy / distance) * overlap
 
-				// Tezlikni aks ettirish
+				// Tezlikni aks ettirish - tabiiyroq trayektoriya
 				const normalX = dx / distance
 				const normalY = dy / distance
-				const dotProduct = flag.vx * normalX + flag.vy * normalY
-				flag.vx -= 2 * dotProduct * normalX
-				flag.vy -= 2 * dotProduct * normalY
+				const tangentX = -normalY
+				const tangentY = normalX
 
-				// Biroz energiya yo'qotish
-				flag.vx *= 0.8
-				flag.vy *= 0.8
+				// Normal va tangensial tezliklar
+				const normalVel = flag.vx * normalX + flag.vy * normalY
+				const tangentVel = flag.vx * tangentX + flag.vy * tangentY
+
+				// Tasodifiy burchak o'zgarishi (tabiiyroq sakrash)
+				const randomAngle = (Math.random() - 0.5) * 0.4 // -0.2 dan +0.2 radiangacha
+
+				// Yangi tezlik - normal qaytariladi, tangensial saqlanadi + tasodifiy burchak
+				const bounceFactor = 0.85 + Math.random() * 0.1 // 0.85-0.95 orasida
+				const newNormalVel = -normalVel * bounceFactor
+
+				// Tangensial tezlikka tasodifiy o'zgarish
+				const tangentChange = tangentVel * (0.9 + Math.random() * 0.2) + (Math.random() - 0.5) * 2
+
+				// Yangi tezliklarni hisoblash
+				flag.vx = newNormalVel * normalX + tangentChange * tangentX
+				flag.vy = newNormalVel * normalY + tangentChange * tangentY
+
+				// Burchak o'zgarishi qo'shish
+				const cos = Math.cos(randomAngle)
+				const sin = Math.sin(randomAngle)
+				const rotatedVx = flag.vx * cos - flag.vy * sin
+				const rotatedVy = flag.vx * sin + flag.vy * cos
+				flag.vx = rotatedVx
+				flag.vy = rotatedVy
 
 				playWallHitSound() // Devorga urilish ovozi
 			}
@@ -511,7 +564,27 @@ const updatePhysics = () => {
 		gameRunning = false
 		playWinSound() // G'alaba ovozi
 		speakWinner(winner.value.name) // G'olib nomini aytish
+
+		// 5 soniyadan keyin avtomatik restart
+		startAutoRestart()
 	}
+}
+
+// Avtomatik restart funksiyasi
+const startAutoRestart = () => {
+	countdownSeconds.value = 5
+
+	const countdownInterval = setInterval(() => {
+		countdownSeconds.value--
+		if (countdownSeconds.value <= 0) {
+			clearInterval(countdownInterval)
+		}
+	}, 1000)
+
+	restartTimer = setTimeout(() => {
+		clearInterval(countdownInterval)
+		restartGame()
+	}, 5000)
 }
 
 // Canvas chizish
@@ -574,6 +647,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
 	cancelAnimationFrame(animationId)
+	if (restartTimer) {
+		clearTimeout(restartTimer)
+	}
 })
 </script>
 
@@ -682,47 +758,332 @@ onUnmounted(() => {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: rgba(0, 0, 0, 0.8);
+	background: radial-gradient(circle, rgba(0, 0, 0, 0.85) 0%, rgba(10, 10, 30, 0.95) 100%);
 	border-radius: 50%;
-	animation: fadeIn 0.5s ease;
+	animation: winnerAppear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+	overflow: hidden;
 }
+
+.winner-glow {
+	position: absolute;
+	width: 300px;
+	height: 300px;
+	background: radial-gradient(circle, rgba(255, 215, 0, 0.3) 0%, transparent 70%);
+	animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.winner-particles {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
+.particle {
+	position: absolute;
+	width: 8px;
+	height: 8px;
+	background: linear-gradient(135deg, #ffd700, #ff6b6b, #00f2ff, #ff00ff);
+	background-size: 400% 400%;
+	border-radius: 50%;
+	animation: particleFloat 3s ease-in-out infinite, gradientShift 2s ease infinite;
+}
+
+.particle:nth-child(1) { left: 20%; top: 20%; animation-delay: 0s; }
+.particle:nth-child(2) { left: 80%; top: 25%; animation-delay: 0.2s; }
+.particle:nth-child(3) { left: 15%; top: 70%; animation-delay: 0.4s; }
+.particle:nth-child(4) { left: 85%; top: 75%; animation-delay: 0.6s; }
+.particle:nth-child(5) { left: 50%; top: 15%; animation-delay: 0.8s; }
+.particle:nth-child(6) { left: 30%; top: 85%; animation-delay: 1s; }
+.particle:nth-child(7) { left: 70%; top: 80%; animation-delay: 1.2s; }
+.particle:nth-child(8) { left: 10%; top: 50%; animation-delay: 1.4s; }
+.particle:nth-child(9) { left: 90%; top: 50%; animation-delay: 1.6s; }
+.particle:nth-child(10) { left: 40%; top: 10%; animation-delay: 1.8s; }
+.particle:nth-child(11) { left: 60%; top: 90%; animation-delay: 0.1s; }
+.particle:nth-child(12) { left: 25%; top: 40%; animation-delay: 0.3s; }
+.particle:nth-child(13) { left: 75%; top: 60%; animation-delay: 0.5s; }
+.particle:nth-child(14) { left: 45%; top: 75%; animation-delay: 0.7s; }
+.particle:nth-child(15) { left: 55%; top: 25%; animation-delay: 0.9s; }
+.particle:nth-child(16) { left: 35%; top: 55%; animation-delay: 1.1s; }
+.particle:nth-child(17) { left: 65%; top: 45%; animation-delay: 1.3s; }
+.particle:nth-child(18) { left: 20%; top: 30%; animation-delay: 1.5s; }
+.particle:nth-child(19) { left: 80%; top: 70%; animation-delay: 1.7s; }
+.particle:nth-child(20) { left: 50%; top: 50%; animation-delay: 1.9s; }
 
 .winner-content {
 	text-align: center;
+	z-index: 10;
+	animation: contentSlideUp 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+}
+
+.crown-icon {
+	font-size: 50px;
+	animation: crownBounce 1s ease-in-out infinite, crownGlow 2s ease-in-out infinite;
+	filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
+	margin-bottom: 10px;
+}
+
+.flag-container {
+	position: relative;
+	display: inline-block;
+	margin-bottom: 20px;
+}
+
+.flag-glow {
+	position: absolute;
+	top: -10px;
+	left: -10px;
+	right: -10px;
+	bottom: -10px;
+	background: linear-gradient(45deg, #ff00ff, #00f2ff, #ffd700, #ff6b6b);
+	background-size: 300% 300%;
+	border-radius: 16px;
+	animation: neonBorder 3s ease infinite;
+	filter: blur(15px);
+	opacity: 0.7;
 }
 
 .winner-big-flag {
-	width: 120px;
-	height: 80px;
+	position: relative;
+	width: 140px;
+	height: 95px;
 	object-fit: cover;
-	border-radius: 8px;
-	margin-bottom: 15px;
-	box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+	border-radius: 12px;
+	border: 3px solid transparent;
+	background: linear-gradient(#1a1a2e, #1a1a2e) padding-box,
+				linear-gradient(45deg, #ffd700, #ff6b6b, #00f2ff, #ff00ff) border-box;
+	animation: flagPulse 2s ease-in-out infinite;
 }
 
-.winner-content h2 {
-	color: gold;
-	font-size: 24px;
+.winner-title {
 	margin: 0;
-	text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.winner-name {
+	font-size: 28px;
+	font-weight: 800;
+	background: linear-gradient(135deg, #ffd700, #ffec8b, #ffd700);
+	background-size: 200% auto;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+	animation: shimmer 2s linear infinite;
+	filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+}
+
+.wins-text {
+	font-size: 36px;
+	font-weight: 900;
+	color: #00f2ff;
+	text-shadow:
+		0 0 10px #00f2ff,
+		0 0 20px #00f2ff,
+		0 0 40px #00f2ff,
+		0 0 80px #00f2ff;
+	animation: neonFlicker 1.5s ease-in-out infinite alternate;
+	letter-spacing: 8px;
+}
+
+.trophy-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 15px;
+	margin-top: 15px;
+}
+
+.trophy {
+	font-size: 30px;
+	animation: trophyBounce 0.6s ease-in-out infinite alternate;
+	filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.6));
+}
+
+.trophy:last-child {
+	animation-delay: 0.3s;
+}
+
+.champion-text {
+	font-size: 14px;
+	font-weight: 700;
+	letter-spacing: 6px;
+	color: #ff00ff;
+	text-shadow:
+		0 0 5px #ff00ff,
+		0 0 10px #ff00ff,
+		0 0 20px #ff00ff;
+	animation: championPulse 1s ease-in-out infinite;
+}
+
+.countdown-text {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 5px;
+	margin-top: 20px;
+}
+
+.countdown-label {
+	font-size: 12px;
+	color: #888;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+}
+
+.countdown-number {
+	font-size: 32px;
+	font-weight: 900;
+	color: #00f2ff;
+	text-shadow:
+		0 0 10px #00f2ff,
+		0 0 20px #00f2ff;
+	animation: countdownPulse 1s ease-in-out infinite;
 }
 
 .restart-btn {
-	margin-top: 20px;
-	padding: 12px 30px;
-	font-size: 16px;
+	margin-top: 25px;
+	padding: 15px 40px;
+	font-size: 18px;
 	font-weight: bold;
 	color: white;
-	background: linear-gradient(135deg, #22c55e, #16a34a);
+	background: linear-gradient(135deg, #ff00ff, #00f2ff);
+	background-size: 200% 200%;
 	border: none;
-	border-radius: 25px;
+	border-radius: 30px;
 	cursor: pointer;
-	transition: transform 0.2s, box-shadow 0.2s;
+	transition: all 0.3s ease;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	box-shadow:
+		0 0 20px rgba(255, 0, 255, 0.4),
+		0 0 40px rgba(0, 242, 255, 0.2);
+	animation: btnGlow 2s ease-in-out infinite;
 }
 
 .restart-btn:hover {
-	transform: scale(1.05);
-	box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+	transform: scale(1.1);
+	box-shadow:
+		0 0 30px rgba(255, 0, 255, 0.6),
+		0 0 60px rgba(0, 242, 255, 0.4);
+	animation: btnHover 0.5s ease-in-out infinite alternate;
+}
+
+.btn-text {
+	text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.btn-icon {
+	font-size: 20px;
+	animation: iconBounce 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes winnerAppear {
+	from {
+		opacity: 0;
+		transform: scale(0.8);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes pulseGlow {
+	0%, 100% { transform: scale(1); opacity: 0.3; }
+	50% { transform: scale(1.2); opacity: 0.5; }
+}
+
+@keyframes particleFloat {
+	0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.8; }
+	50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
+}
+
+@keyframes gradientShift {
+	0% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+	100% { background-position: 0% 50%; }
+}
+
+@keyframes contentSlideUp {
+	from {
+		opacity: 0;
+		transform: translateY(30px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes crownBounce {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-10px); }
+}
+
+@keyframes crownGlow {
+	0%, 100% { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8)); }
+	50% { filter: drop-shadow(0 0 40px rgba(255, 215, 0, 1)); }
+}
+
+@keyframes neonBorder {
+	0% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+	100% { background-position: 0% 50%; }
+}
+
+@keyframes flagPulse {
+	0%, 100% { transform: scale(1); }
+	50% { transform: scale(1.02); }
+}
+
+@keyframes shimmer {
+	to { background-position: 200% center; }
+}
+
+@keyframes neonFlicker {
+	0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+		text-shadow:
+			0 0 10px #00f2ff,
+			0 0 20px #00f2ff,
+			0 0 40px #00f2ff,
+			0 0 80px #00f2ff;
+	}
+	20%, 24%, 55% {
+		text-shadow: none;
+	}
+}
+
+@keyframes trophyBounce {
+	from { transform: translateY(0) rotate(-5deg); }
+	to { transform: translateY(-5px) rotate(5deg); }
+}
+
+@keyframes championPulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.7; }
+}
+
+@keyframes countdownPulse {
+	0%, 100% { transform: scale(1); }
+	50% { transform: scale(1.1); }
+}
+
+@keyframes btnGlow {
+	0%, 100% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+}
+
+@keyframes btnHover {
+	from { background-position: 0% 50%; }
+	to { background-position: 100% 50%; }
+}
+
+@keyframes iconBounce {
+	from { transform: translateY(0); }
+	to { transform: translateY(-3px); }
 }
 
 .eliminated-container {
@@ -761,12 +1122,4 @@ onUnmounted(() => {
 	object-fit: cover;
 }
 
-@keyframes fadeIn {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
-}
 </style>
