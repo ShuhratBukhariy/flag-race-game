@@ -1,5 +1,31 @@
 <template>
 	<div class="game-wrapper">
+		<!-- Background Watermarks -->
+		<div class="watermark-container">
+			<span class="watermark watermark-1">FLAG-BATTLE CUP</span>
+			<span class="watermark watermark-2">FLAG-BATTLE CUP</span>
+			<span class="watermark watermark-3">FLAG-BATTLE CUP</span>
+			<span class="watermark watermark-4">FLAG-BATTLE CUP</span>
+		</div>
+
+		<!-- Decorative Elements -->
+		<div class="decorations">
+			<div class="corner-decor top-left"></div>
+			<div class="corner-decor top-right"></div>
+			<div class="corner-decor bottom-left"></div>
+			<div class="corner-decor bottom-right"></div>
+			<div class="floating-star star-1">*</div>
+			<div class="floating-star star-2">*</div>
+			<div class="floating-star star-3">*</div>
+		</div>
+
+		<!-- Game Title -->
+		<div class="game-title">
+			<span class="title-icon">🏁</span>
+			<h1 class="title-text">FLAG-BATTLE CUP</h1>
+			<span class="title-icon">🏁</span>
+		</div>
+
 		<!-- Top 3 Winners -->
 		<div class="top-winners">
 			<div v-for="(winner, index) in topWinners" :key="index" class="winner-slot">
@@ -12,12 +38,12 @@
 		</div>
 
 		<!-- Progress Bar -->
-		<div class="progress-container">
-			<div class="progress-label">Flags remaining: {{ activeFlags.length }}</div>
-			<div class="progress-bar">
-				<div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-			</div>
-		</div>
+<!--		<div class="progress-container">-->
+<!--			<div class="progress-label">Flags remaining: {{ activeFlags.length }}</div>-->
+<!--			<div class="progress-bar">-->
+<!--				<div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>-->
+<!--			</div>-->
+<!--		</div>-->
 
 		<!-- Game Arena -->
 		<div class="arena-container">
@@ -98,8 +124,8 @@ const centerX = 300
 const centerY = 300
 const arenaRadius = 260
 const flagSize = 30
-const gapStartAngle = -Math.PI / 4 // Gap o'ng tomonda
-const gapEndAngle = Math.PI / 4
+const gapStartAngle = -Math.PI / 7 // Gap o'ng tomonda (kichikroq)
+const gapEndAngle = Math.PI / 7
 const rotationSpeed = 0.02 // Tezroq aylanish
 
 let animationId: number
@@ -198,47 +224,72 @@ const playWinSound = () => {
 
 // G'olib nomini o'qish (Text-to-Speech)
 const speakWinner = (name: string) => {
-	if ('speechSynthesis' in window) {
-		// Avvalgi nutqni to'xtatish
-		window.speechSynthesis.cancel()
+	if (!('speechSynthesis' in window)) return
 
+	// Avvalgi nutqni to'xtatish
+	window.speechSynthesis.cancel()
+
+	const speak = () => {
 		const utterance = new SpeechSynthesisUtterance(`${name} wins!`)
-		utterance.rate = 0.9 // Biroz sekinroq
-		utterance.pitch = 1.3 // Balandroq ovoz (qiz bola uchun)
+		utterance.rate = 0.9
+		utterance.pitch = 1.3
 		utterance.volume = 1
 
-		// Qiz bola ovozini topish
-		const setFemaleVoice = () => {
-			const voices = window.speechSynthesis.getVoices()
-			const femaleVoice = voices.find(
-				(voice) =>
-					voice.name.toLowerCase().includes('female') ||
-					voice.name.toLowerCase().includes('woman') ||
-					voice.name.toLowerCase().includes('girl') ||
-					voice.name.includes('Zira') || // Windows
-					voice.name.includes('Samantha') || // macOS
-					voice.name.includes('Google US English') ||
-					(voice.lang.startsWith('en') && voice.name.toLowerCase().includes('f'))
-			) || voices.find(voice => voice.lang.startsWith('en'))
+		const voices = window.speechSynthesis.getVoices()
+		const femaleVoice = voices.find(
+			(voice) =>
+				voice.name.toLowerCase().includes('female') ||
+				voice.name.toLowerCase().includes('woman') ||
+				voice.name.toLowerCase().includes('girl') ||
+				voice.name.includes('Zira') ||
+				voice.name.includes('Samantha') ||
+				voice.name.includes('Google US English') ||
+				(voice.lang.startsWith('en') && voice.name.toLowerCase().includes('f'))
+		) || voices.find(voice => voice.lang.startsWith('en'))
 
-			if (femaleVoice) {
-				utterance.voice = femaleVoice
-			}
-
-			// 0.7 soniya kutib gapirish (fanfare tugaganidan keyin)
-			setTimeout(() => {
-				window.speechSynthesis.speak(utterance)
-			}, 700)
+		if (femaleVoice) {
+			utterance.voice = femaleVoice
 		}
 
-		// Voices yuklangan bo'lsa
-		if (window.speechSynthesis.getVoices().length > 0) {
-			setFemaleVoice()
+		// Chrome bug fix - resume kerak
+		window.speechSynthesis.cancel()
+		window.speechSynthesis.speak(utterance)
+
+		// Chrome production bug fix - stuck bo'lib qolmasligi uchun
+		const resumeInterval = setInterval(() => {
+			if (!window.speechSynthesis.speaking) {
+				clearInterval(resumeInterval)
+			} else {
+				window.speechSynthesis.resume()
+			}
+		}, 100)
+
+		// 5 sekunddan keyin intervalni to'xtatish
+		setTimeout(() => clearInterval(resumeInterval), 5000)
+	}
+
+	// 0.7 soniya kutib gapirish
+	setTimeout(() => {
+		const voices = window.speechSynthesis.getVoices()
+		if (voices.length > 0) {
+			speak()
 		} else {
 			// Voices yuklanishini kutish
-			window.speechSynthesis.onvoiceschanged = setFemaleVoice
+			const onVoicesChanged = () => {
+				speak()
+				window.speechSynthesis.onvoiceschanged = null
+			}
+			window.speechSynthesis.onvoiceschanged = onVoicesChanged
+
+			// Fallback - 500ms kutib qayta urinish
+			setTimeout(() => {
+				if (window.speechSynthesis.getVoices().length > 0) {
+					window.speechSynthesis.onvoiceschanged = null
+					speak()
+				}
+			}, 500)
 		}
-	}
+	}, 700)
 }
 
 // Devorga urilish ovozi
@@ -384,8 +435,8 @@ const initFlags = () => {
 		...country,
 		x: centerX + (Math.random() - 0.5) * 200,
 		y: centerY + (Math.random() - 0.5) * 200,
-		vx: (Math.random() - 0.5) * 8, // Tezroq harakat
-		vy: (Math.random() - 0.5) * 8,
+		vx: (Math.random() - 0.5) * 6, // O'rtacha tezlik
+		vy: (Math.random() - 0.5) * 6,
 		angle: Math.random() * Math.PI * 2,
 		eliminated: false,
 	}))
@@ -440,8 +491,8 @@ const updatePhysics = () => {
 
 		// Tezlikni cheklash
 		const speed = Math.sqrt(flag.vx * flag.vx + flag.vy * flag.vy)
-		const maxSpeed = 10 // Tezroq
-		const minSpeed = 3  // Minimum tezlik ham yuqori
+		const maxSpeed = 8 // O'rtacha tezlik
+		const minSpeed = 2  // Minimum tezlik
 		if (speed > maxSpeed) {
 			flag.vx = (flag.vx / speed) * maxSpeed
 			flag.vy = (flag.vy / speed) * maxSpeed
@@ -475,42 +526,33 @@ const updatePhysics = () => {
 				}
 				return
 			} else {
-				// Devordan qaytarish
+				// Devordan qaytarish - qarama-qarshi tarafga otilsin
 				const overlap = distance - (arenaRadius - flagSize / 2)
 				flag.x -= (dx / distance) * overlap
 				flag.y -= (dy / distance) * overlap
 
-				// Tezlikni aks ettirish - tabiiyroq trayektoriya
+				// Qarama-qarshi yo'nalishga otish (markazga qarab)
 				const normalX = dx / distance
 				const normalY = dy / distance
-				const tangentX = -normalY
-				const tangentY = normalX
 
-				// Normal va tangensial tezliklar
-				const normalVel = flag.vx * normalX + flag.vy * normalY
-				const tangentVel = flag.vx * tangentX + flag.vy * tangentY
+				// Hozirgi tezlik
+				const currentSpeed = Math.sqrt(flag.vx * flag.vx + flag.vy * flag.vy)
 
-				// Tasodifiy burchak o'zgarishi (tabiiyroq sakrash)
-				const randomAngle = (Math.random() - 0.5) * 0.4 // -0.2 dan +0.2 radiangacha
+				// Tezlik bilan qaytarish
+				const bounceFactor = 0.9 + Math.random() * 0.2 // 0.9-1.1 orasida
+				const bounceSpeed = Math.min(currentSpeed * bounceFactor, 10) // Maksimal tezlik
 
-				// Yangi tezlik - normal qaytariladi, tangensial saqlanadi + tasodifiy burchak
-				const bounceFactor = 0.85 + Math.random() * 0.1 // 0.85-0.95 orasida
-				const newNormalVel = -normalVel * bounceFactor
-
-				// Tangensial tezlikka tasodifiy o'zgarish
-				const tangentChange = tangentVel * (0.9 + Math.random() * 0.2) + (Math.random() - 0.5) * 2
-
-				// Yangi tezliklarni hisoblash
-				flag.vx = newNormalVel * normalX + tangentChange * tangentX
-				flag.vy = newNormalVel * normalY + tangentChange * tangentY
-
-				// Burchak o'zgarishi qo'shish
+				// Biroz tasodifiy burchak qo'shish (lekin asosan markazga qarab)
+				const randomAngle = (Math.random() - 0.5) * 0.6 // -0.3 dan +0.3 radiangacha
 				const cos = Math.cos(randomAngle)
 				const sin = Math.sin(randomAngle)
-				const rotatedVx = flag.vx * cos - flag.vy * sin
-				const rotatedVy = flag.vx * sin + flag.vy * cos
-				flag.vx = rotatedVx
-				flag.vy = rotatedVy
+
+				// Markazga qarab yo'nalish + tasodifiy burchak
+				const dirX = -normalX * cos - (-normalY) * sin
+				const dirY = -normalX * sin + (-normalY) * cos
+
+				flag.vx = dirX * bounceSpeed
+				flag.vy = dirY * bounceSpeed
 
 				playWallHitSound() // Devorga urilish ovozi
 			}
@@ -593,13 +635,33 @@ const draw = () => {
 	if (!canvas) return
 
 	const ctx = canvas.getContext('2d')!
-	ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-	// Aylana foni (dark)
+	// Butun canvasni tozalash va qora fon bilan to'ldirish
+	ctx.fillStyle = '#0a0a15'
+	ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+	// Aylana foni (dark gradient)
 	ctx.beginPath()
 	ctx.arc(centerX, centerY, arenaRadius, 0, Math.PI * 2)
-	ctx.fillStyle = '#1e293b' // Dark slate color
+	const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, arenaRadius)
+	gradient.addColorStop(0, '#1e293b')
+	gradient.addColorStop(0.7, '#151525')
+	gradient.addColorStop(1, '#0a0a15')
+	ctx.fillStyle = gradient
 	ctx.fill()
+
+	// Arena ichidagi watermark
+	ctx.save()
+	ctx.globalAlpha = 0.04
+	ctx.font = 'bold 45px Arial'
+	ctx.fillStyle = '#ffffff'
+	ctx.textAlign = 'center'
+	ctx.textBaseline = 'middle'
+	ctx.translate(centerX, centerY)
+	ctx.rotate(-0.2)
+	ctx.fillText('FLAG-BATTLE', 0, -20)
+	ctx.fillText('CUP', 0, 30)
+	ctx.restore()
 
 	// Yashil chiziq (gap bilan)
 	ctx.beginPath()
@@ -655,17 +717,209 @@ onUnmounted(() => {
 
 <style scoped>
 .game-wrapper {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 20px;
 	color: white;
+	padding: 30px;
+	min-height: 100vh;
+	background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0a0a1a 100%);
+	overflow: hidden;
+}
+
+/* Watermark Styles */
+.watermark-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	overflow: hidden;
+	z-index: 0;
+}
+
+.watermark {
+	position: absolute;
+	font-size: 80px;
+	font-weight: 900;
+	color: rgba(255, 255, 255, 0.03);
+	white-space: nowrap;
+	letter-spacing: 20px;
+	text-transform: uppercase;
+	user-select: none;
+}
+
+.watermark-1 {
+	top: 10%;
+	left: -5%;
+	transform: rotate(-15deg);
+	animation: watermarkFloat 20s ease-in-out infinite;
+}
+
+.watermark-2 {
+	top: 40%;
+	right: -10%;
+	transform: rotate(10deg);
+	animation: watermarkFloat 25s ease-in-out infinite reverse;
+}
+
+.watermark-3 {
+	bottom: 20%;
+	left: 5%;
+	transform: rotate(-5deg);
+	animation: watermarkFloat 22s ease-in-out infinite;
+}
+
+.watermark-4 {
+	bottom: 5%;
+	right: 0%;
+	transform: rotate(15deg);
+	animation: watermarkFloat 18s ease-in-out infinite reverse;
+}
+
+@keyframes watermarkFloat {
+	0%, 100% { transform: translateX(0) rotate(-15deg); }
+	50% { transform: translateX(30px) rotate(-12deg); }
+}
+
+/* Decorations */
+.decorations {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.corner-decor {
+	position: absolute;
+	width: 150px;
+	height: 150px;
+	border: 3px solid transparent;
+	background: linear-gradient(45deg, rgba(0, 242, 255, 0.1), transparent) border-box;
+}
+
+.corner-decor.top-left {
+	top: 20px;
+	left: 20px;
+	border-top-color: rgba(0, 242, 255, 0.3);
+	border-left-color: rgba(0, 242, 255, 0.3);
+	border-top-left-radius: 30px;
+}
+
+.corner-decor.top-right {
+	top: 20px;
+	right: 20px;
+	border-top-color: rgba(255, 0, 255, 0.3);
+	border-right-color: rgba(255, 0, 255, 0.3);
+	border-top-right-radius: 30px;
+}
+
+.corner-decor.bottom-left {
+	bottom: 20px;
+	left: 20px;
+	border-bottom-color: rgba(255, 215, 0, 0.3);
+	border-left-color: rgba(255, 215, 0, 0.3);
+	border-bottom-left-radius: 30px;
+}
+
+.corner-decor.bottom-right {
+	bottom: 20px;
+	right: 20px;
+	border-bottom-color: rgba(34, 197, 94, 0.3);
+	border-right-color: rgba(34, 197, 94, 0.3);
+	border-bottom-right-radius: 30px;
+}
+
+.floating-star {
+	position: absolute;
+	font-size: 30px;
+	color: rgba(255, 215, 0, 0.4);
+	animation: starFloat 4s ease-in-out infinite;
+}
+
+.star-1 {
+	top: 15%;
+	left: 10%;
+	animation-delay: 0s;
+}
+
+.star-2 {
+	top: 25%;
+	right: 15%;
+	animation-delay: 1.3s;
+}
+
+.star-3 {
+	bottom: 30%;
+	left: 8%;
+	animation-delay: 2.6s;
+}
+
+@keyframes starFloat {
+	0%, 100% { transform: translateY(0) scale(1); opacity: 0.4; }
+	50% { transform: translateY(-15px) scale(1.2); opacity: 0.8; }
+}
+
+/* Game Title */
+.game-title {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	margin-bottom: 10px;
+	z-index: 1;
+}
+
+.title-icon {
+	font-size: 40px;
+	animation: flagWave 1s ease-in-out infinite alternate;
+}
+
+.title-icon:last-child {
+	animation-delay: 0.5s;
+}
+
+@keyframes flagWave {
+	from { transform: rotate(-10deg); }
+	to { transform: rotate(10deg); }
+}
+
+.title-text {
+	font-size: 42px;
+	font-weight: 900;
+	margin: 0;
+	background: linear-gradient(135deg, #00f2ff, #ff00ff, #ffd700, #00f2ff);
+	background-size: 300% 300%;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+	animation: titleGradient 4s ease infinite;
+	text-shadow: 0 0 30px rgba(0, 242, 255, 0.3);
+	letter-spacing: 4px;
+	filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.3));
+}
+
+@keyframes titleGradient {
+	0% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+	100% { background-position: 0% 50%; }
 }
 
 .top-winners {
 	display: flex;
 	gap: 20px;
 	margin-bottom: 10px;
+	z-index: 1;
+	background: rgba(0, 0, 0, 0.3);
+	padding: 15px 30px;
+	border-radius: 20px;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	backdrop-filter: blur(10px);
 }
 
 .winner-slot {
@@ -676,27 +930,40 @@ onUnmounted(() => {
 }
 
 .winner-badge {
-	width: 60px;
-	height: 60px;
-	border-radius: 8px;
-	background: #2a2a4a;
+	width: 65px;
+	height: 65px;
+	border-radius: 12px;
+	background: linear-gradient(135deg, #2a2a4a, #1a1a3a);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	overflow: hidden;
+	transition: all 0.3s ease;
+}
+
+.winner-badge:hover {
+	transform: scale(1.1);
 }
 
 .winner-badge.rank-1 {
 	border: 3px solid gold;
-	box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+	box-shadow: 0 0 25px rgba(255, 215, 0, 0.6), inset 0 0 15px rgba(255, 215, 0, 0.1);
+	animation: rank1Pulse 2s ease-in-out infinite;
+}
+
+@keyframes rank1Pulse {
+	0%, 100% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.6), inset 0 0 15px rgba(255, 215, 0, 0.1); }
+	50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8), inset 0 0 20px rgba(255, 215, 0, 0.2); }
 }
 
 .winner-badge.rank-2 {
 	border: 3px solid silver;
+	box-shadow: 0 0 15px rgba(192, 192, 192, 0.4);
 }
 
 .winner-badge.rank-3 {
 	border: 3px solid #cd7f32;
+	box-shadow: 0 0 15px rgba(205, 127, 50, 0.4);
 }
 
 .winner-flag {
@@ -712,41 +979,90 @@ onUnmounted(() => {
 
 .rank-label {
 	font-size: 14px;
-	font-weight: bold;
-	color: #888;
+	font-weight: 800;
+	color: #aaa;
+	text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
 .progress-container {
-	width: 400px;
+	width: 450px;
 	margin-bottom: 10px;
+	z-index: 1;
+	background: rgba(0, 0, 0, 0.4);
+	padding: 15px 25px;
+	border-radius: 15px;
+	border: 1px solid rgba(34, 197, 94, 0.3);
+	box-shadow: 0 0 20px rgba(34, 197, 94, 0.1);
 }
 
 .progress-label {
-	font-size: 12px;
-	color: #888;
-	margin-bottom: 5px;
+	font-size: 14px;
+	color: #aaa;
+	margin-bottom: 8px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 2px;
 }
 
 .progress-bar {
-	height: 8px;
-	background: #2a2a4a;
-	border-radius: 4px;
+	height: 12px;
+	background: #1a1a3a;
+	border-radius: 6px;
 	overflow: hidden;
+	border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .progress-fill {
 	height: 100%;
-	background: linear-gradient(90deg, #22c55e, #16a34a);
+	background: linear-gradient(90deg, #22c55e, #00f2ff, #22c55e);
+	background-size: 200% 100%;
 	transition: width 0.3s ease;
+	animation: progressGlow 2s ease-in-out infinite;
+	box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
+}
+
+@keyframes progressGlow {
+	0%, 100% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
 }
 
 .arena-container {
 	position: relative;
+	z-index: 1;
+	padding: 15px;
+	background: radial-gradient(circle, rgba(34, 197, 94, 0.1) 0%, transparent 70%);
+	border-radius: 50%;
+}
+
+.arena-container::before {
+	content: '';
+	position: absolute;
+	top: -5px;
+	left: -5px;
+	right: -5px;
+	bottom: -5px;
+	border-radius: 50%;
+	background: linear-gradient(45deg, #22c55e, #00f2ff, #ff00ff, #ffd700, #22c55e);
+	background-size: 400% 400%;
+	animation: arenaGlow 6s ease infinite;
+	z-index: -1;
+	opacity: 0.5;
+	filter: blur(15px);
+}
+
+@keyframes arenaGlow {
+	0% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+	100% { background-position: 0% 50%; }
 }
 
 .arena-container canvas {
 	border-radius: 50%;
-	box-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
+	box-shadow:
+		0 0 30px rgba(34, 197, 94, 0.4),
+		0 0 60px rgba(0, 242, 255, 0.2),
+		inset 0 0 30px rgba(0, 0, 0, 0.5);
+	border: 3px solid rgba(34, 197, 94, 0.4);
 }
 
 .winner-announcement {
@@ -1087,39 +1403,78 @@ onUnmounted(() => {
 }
 
 .eliminated-container {
-	width: 500px;
+	width: 550px;
 	max-height: 200px;
 	overflow-y: auto;
-	padding: 10px;
-	background: rgba(0, 0, 0, 0.3);
-	border-radius: 10px;
+	padding: 15px;
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: 15px;
+	z-index: 1;
+	border: 1px solid rgba(255, 107, 107, 0.3);
+	box-shadow: 0 0 20px rgba(255, 107, 107, 0.1);
+}
+
+.eliminated-container::before {
+	content: 'ELIMINATED';
+	display: block;
+	text-align: center;
+	font-size: 12px;
+	font-weight: 700;
+	color: rgba(255, 107, 107, 0.6);
+	letter-spacing: 3px;
+	margin-bottom: 10px;
 }
 
 .eliminated-grid {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 5px;
+	gap: 8px;
 	justify-content: center;
 }
 
 .eliminated-flag {
-	width: 40px;
-	height: 28px;
-	border-radius: 4px;
+	width: 42px;
+	height: 30px;
+	border-radius: 6px;
 	overflow: hidden;
-	border: 1px solid #333;
-	transition: transform 0.2s;
+	border: 2px solid rgba(255, 107, 107, 0.4);
+	transition: all 0.3s ease;
+	opacity: 0.7;
+	filter: grayscale(30%);
 }
 
 .eliminated-flag:hover {
-	transform: scale(1.2);
+	transform: scale(1.3);
 	z-index: 10;
+	opacity: 1;
+	filter: grayscale(0%);
+	border-color: #ff6b6b;
+	box-shadow: 0 0 15px rgba(255, 107, 107, 0.5);
 }
 
 .eliminated-flag img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
+}
+
+/* Scrollbar Styling */
+.eliminated-container::-webkit-scrollbar {
+	width: 8px;
+}
+
+.eliminated-container::-webkit-scrollbar-track {
+	background: rgba(0, 0, 0, 0.3);
+	border-radius: 4px;
+}
+
+.eliminated-container::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, #ff6b6b, #ff00ff);
+	border-radius: 4px;
+}
+
+.eliminated-container::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, #ff8888, #ff33ff);
 }
 
 </style>
