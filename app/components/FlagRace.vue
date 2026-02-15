@@ -1,5 +1,5 @@
 <template>
-	<div class="game-wrapper">
+	<div class="game-wrapper" :class="{ 'performance-mode': performanceMode }">
 		<!-- Background Watermarks -->
 		<div class="watermark-container">
 			<span class="watermark watermark-1">FLAG-BATTLE CUP</span>
@@ -19,8 +19,18 @@
 			<div class="floating-star star-3">*</div>
 		</div>
 
+		<!-- Performance Mode Toggle (OBS streaming uchun) -->
+		<button
+			@click="togglePerformanceMode"
+			class="performance-toggle"
+			:class="{ active: performanceMode }"
+			title="OBS streaming uchun effektlarni o'chirish"
+		>
+			⚡ {{ performanceMode ? 'TURBO' : 'NORMAL' }}
+		</button>
+
 		<!-- Game Title -->
-		<div class="game-title">
+		<div class="game-title" :class="{ 'no-effects': performanceMode }">
 			<span class="title-icon">🏁</span>
 			<h1 class="title-text">FLAG-BATTLE CUP</h1>
 			<span class="title-icon">🏁</span>
@@ -46,7 +56,7 @@
 <!--		</div>-->
 
 		<!-- Game Arena -->
-		<div class="arena-container">
+		<div class="arena-container" :class="{ 'no-effects': performanceMode }">
 			<canvas ref="gameCanvas" width="600" height="600"></canvas>
 
 			<!-- Winner Announcement -->
@@ -133,6 +143,14 @@ let currentRotation = 0
 let gameRunning = true
 let restartTimer: ReturnType<typeof setTimeout> | null = null
 const countdownSeconds = ref(0)
+
+// Delta time for frame-rate independent animation
+let lastFrameTime = 0
+const targetFPS = 60
+const targetFrameTime = 1000 / targetFPS
+
+// Performance mode - OBS streaming uchun
+const performanceMode = ref(true) // Default: yoqiq
 
 // Audio context for sound effects
 let audioContext: AudioContext | null = null
@@ -456,7 +474,13 @@ const restartGame = () => {
 	topWinners.value = [null, null, null]
 	currentRotation = 0
 	gameRunning = true
+	lastFrameTime = 0 // Reset delta time
 	initFlags()
+}
+
+// Performance mode toggle
+const togglePerformanceMode = () => {
+	performanceMode.value = !performanceMode.value
 }
 
 // Burchak normalizatsiya
@@ -472,22 +496,25 @@ const isInGap = (angle: number): boolean => {
 	return normalized > gapStartAngle && normalized < gapEndAngle
 }
 
-// Fizika yangilash
-const updatePhysics = () => {
+// Fizika yangilash - delta time bilan
+const updatePhysics = (deltaTime: number) => {
 	if (!gameRunning) return
 
-	currentRotation += rotationSpeed
+	// Delta time multiplikatori (60 FPS bazasi uchun)
+	const dt = deltaTime * targetFPS
+
+	currentRotation += rotationSpeed * dt
 
 	activeFlags.value.forEach((flag) => {
 		if (flag.eliminated) return
 
-		// Harakatni yangilash
-		flag.x += flag.vx
-		flag.y += flag.vy
+		// Harakatni yangilash - delta time bilan
+		flag.x += flag.vx * dt
+		flag.y += flag.vy * dt
 
-		// Biroz tasodifiy kuch qo'shish
-		flag.vx += (Math.random() - 0.5) * 0.3
-		flag.vy += (Math.random() - 0.5) * 0.3
+		// Biroz tasodifiy kuch qo'shish - delta time bilan
+		flag.vx += (Math.random() - 0.5) * 0.3 * dt
+		flag.vy += (Math.random() - 0.5) * 0.3 * dt
 
 		// Tezlikni cheklash
 		const speed = Math.sqrt(flag.vx * flag.vx + flag.vy * flag.vy)
@@ -694,9 +721,17 @@ const draw = () => {
 	})
 }
 
-// O'yin tsikli
-const gameLoop = () => {
-	updatePhysics()
+// O'yin tsikli - delta time bilan
+const gameLoop = (currentTime: number) => {
+	// Delta time hisoblash (soniyalarda)
+	if (lastFrameTime === 0) {
+		lastFrameTime = currentTime
+	}
+
+	const deltaTime = Math.min((currentTime - lastFrameTime) / 1000, 0.1) // Max 100ms (10 FPS minimum)
+	lastFrameTime = currentTime
+
+	updatePhysics(deltaTime)
 	draw()
 	animationId = requestAnimationFrame(gameLoop)
 }
@@ -704,7 +739,8 @@ const gameLoop = () => {
 onMounted(async () => {
 	await loadImages()
 	initFlags()
-	gameLoop()
+	lastFrameTime = 0 // Reset frame time
+	animationId = requestAnimationFrame(gameLoop)
 })
 
 onUnmounted(() => {
@@ -716,6 +752,94 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Performance Mode Toggle Button */
+.performance-toggle {
+	position: fixed;
+	top: 10px;
+	right: 10px;
+	z-index: 1000;
+	padding: 8px 16px;
+	font-size: 12px;
+	font-weight: bold;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.7);
+	border: 2px solid #666;
+	border-radius: 20px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.performance-toggle.active {
+	background: linear-gradient(135deg, #22c55e, #00f2ff);
+	border-color: #22c55e;
+	box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+}
+
+.performance-toggle:hover {
+	transform: scale(1.05);
+}
+
+/* No Effects Mode - OBS streaming uchun */
+.no-effects .title-text {
+	animation: none !important;
+	background: linear-gradient(135deg, #00f2ff, #ff00ff) !important;
+	background-size: 100% 100% !important;
+	filter: none !important;
+}
+
+.no-effects .title-icon {
+	animation: none !important;
+}
+
+.no-effects.arena-container::before {
+	animation: none !important;
+	opacity: 0.3 !important;
+	filter: none !important;
+}
+
+.no-effects.arena-container canvas {
+	box-shadow: 0 0 15px rgba(34, 197, 94, 0.3) !important;
+}
+
+/* Watermarks va decorations - performance mode'da yashirish */
+.game-wrapper.performance-mode .watermark-container,
+.game-wrapper.performance-mode .decorations {
+	display: none !important;
+}
+
+/* Winner announcement - performance mode'da sodda */
+.game-wrapper.performance-mode .winner-particles,
+.game-wrapper.performance-mode .winner-glow,
+.game-wrapper.performance-mode .flag-glow {
+	display: none !important;
+}
+
+.game-wrapper.performance-mode .winner-announcement * {
+	animation-duration: 0s !important;
+}
+
+/* Top winners - performance mode'da sodda */
+.game-wrapper.performance-mode .winner-badge.rank-1 {
+	animation: none !important;
+}
+
+/* Arena glow - performance mode'da o'chirish */
+.game-wrapper.performance-mode .arena-container::before {
+	animation: none !important;
+	opacity: 0.2 !important;
+	filter: blur(5px) !important;
+}
+
+/* Progress bar - performance mode'da sodda */
+.game-wrapper.performance-mode .progress-fill {
+	animation: none !important;
+}
+
+/* Eliminated container - performance mode'da sodda */
+.game-wrapper.performance-mode .eliminated-flag:hover {
+	transform: none !important;
+}
+
 .game-wrapper {
 	position: relative;
 	display: flex;
