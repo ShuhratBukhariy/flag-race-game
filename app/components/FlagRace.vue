@@ -126,7 +126,7 @@ const arenaRadius = 260
 const flagSize = 30
 const gapStartAngle = -Math.PI / 7 // Gap o'ng tomonda (kichikroq)
 const gapEndAngle = Math.PI / 7
-const rotationSpeed = 0.02 // Tezroq aylanish
+const rotationSpeed = 0.035 // Tezroq aylanish
 
 let animationId: number
 let currentRotation = 0
@@ -435,8 +435,8 @@ const initFlags = () => {
 		...country,
 		x: centerX + (Math.random() - 0.5) * 200,
 		y: centerY + (Math.random() - 0.5) * 200,
-		vx: (Math.random() - 0.5) * 6, // O'rtacha tezlik
-		vy: (Math.random() - 0.5) * 6,
+		vx: (Math.random() - 0.5) * 10, // Tezroq harakat
+		vy: (Math.random() - 0.5) * 10,
 		angle: Math.random() * Math.PI * 2,
 		eliminated: false,
 	}))
@@ -491,8 +491,8 @@ const updatePhysics = () => {
 
 		// Tezlikni cheklash
 		const speed = Math.sqrt(flag.vx * flag.vx + flag.vy * flag.vy)
-		const maxSpeed = 8 // O'rtacha tezlik
-		const minSpeed = 2  // Minimum tezlik
+		const maxSpeed = 12 // Tezroq harakat
+		const minSpeed = 4  // Minimum tezlik
 		if (speed > maxSpeed) {
 			flag.vx = (flag.vx / speed) * maxSpeed
 			flag.vy = (flag.vy / speed) * maxSpeed
